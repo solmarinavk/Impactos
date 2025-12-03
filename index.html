@@ -71,6 +71,13 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+        .mapping-container {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .match-high { background-color: rgba(34, 197, 94, 0.2); }
+        .match-medium { background-color: rgba(234, 179, 8, 0.2); }
+        .match-low { background-color: rgba(239, 68, 68, 0.2); }
     </style>
 </head>
 <body class="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 min-h-screen text-white">
@@ -90,9 +97,9 @@
                         <p class="text-xs text-slate-400">Generador de Tablas Dinámicas</p>
                     </div>
                 </div>
-                <div id="fileInfo" class="hidden text-sm text-slate-400">
-                    <span id="fileName" class="text-primary-400 font-medium"></span>
-                    <span id="rowCount" class="ml-2"></span>
+                <div id="fileInfo" class="hidden text-sm text-slate-400 space-x-4">
+                    <span><span id="fileName" class="text-primary-400 font-medium"></span> <span id="rowCount"></span></span>
+                    <span id="audienceFileInfo" class="hidden">| <span id="audienceFileName" class="text-emerald-400 font-medium"></span></span>
                 </div>
             </div>
         </div>
@@ -100,13 +107,38 @@
 
     <main class="container mx-auto px-6 py-8">
 
-        <!-- Upload Section -->
+        <!-- Step Indicator -->
+        <div id="stepIndicator" class="max-w-4xl mx-auto mb-8">
+            <div class="flex items-center justify-center space-x-4">
+                <div class="step-item flex items-center" data-step="1">
+                    <div id="step1Circle" class="w-8 h-8 rounded-full bg-primary-500 text-white flex items-center justify-center text-sm font-medium">1</div>
+                    <span class="ml-2 text-sm text-slate-300">Datos TXT</span>
+                </div>
+                <div class="w-12 h-0.5 bg-slate-600"></div>
+                <div class="step-item flex items-center" data-step="2">
+                    <div id="step2Circle" class="w-8 h-8 rounded-full bg-slate-600 text-slate-400 flex items-center justify-center text-sm font-medium">2</div>
+                    <span class="ml-2 text-sm text-slate-500">Audiencia (opcional)</span>
+                </div>
+                <div class="w-12 h-0.5 bg-slate-600"></div>
+                <div class="step-item flex items-center" data-step="3">
+                    <div id="step3Circle" class="w-8 h-8 rounded-full bg-slate-600 text-slate-400 flex items-center justify-center text-sm font-medium">3</div>
+                    <span class="ml-2 text-sm text-slate-500">Configurar</span>
+                </div>
+                <div class="w-12 h-0.5 bg-slate-600"></div>
+                <div class="step-item flex items-center" data-step="4">
+                    <div id="step4Circle" class="w-8 h-8 rounded-full bg-slate-600 text-slate-400 flex items-center justify-center text-sm font-medium">4</div>
+                    <span class="ml-2 text-sm text-slate-500">Resultados</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Upload Section - Step 1 -->
         <section id="uploadSection" class="max-w-2xl mx-auto">
             <div class="text-center mb-8">
                 <h2 class="text-3xl font-bold mb-3 bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent">
-                    Carga tu archivo TXT
+                    Paso 1: Carga tu archivo TXT
                 </h2>
-                <p class="text-slate-400">Arrastra tu archivo o haz clic para seleccionarlo</p>
+                <p class="text-slate-400">Archivo de impactos delimitado por |</p>
             </div>
 
             <div id="dropZone" class="border-2 border-dashed border-slate-600 rounded-2xl p-12 text-center cursor-pointer transition-all duration-300 hover:border-primary-500 hover:bg-slate-800/50">
@@ -124,7 +156,118 @@
             </div>
         </section>
 
-        <!-- Configuration Section -->
+        <!-- Audience Upload Section - Step 2 -->
+        <section id="audienceUploadSection" class="hidden fade-in max-w-4xl mx-auto">
+            <div class="text-center mb-8">
+                <h2 class="text-3xl font-bold mb-3 bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent">
+                    Paso 2: Datos de Audiencia (Opcional)
+                </h2>
+                <p class="text-slate-400">Carga tu Excel con datos de audiencia por emisora y región</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Upload Zone -->
+                <div id="audienceDropZone" class="border-2 border-dashed border-slate-600 rounded-2xl p-8 text-center cursor-pointer transition-all duration-300 hover:border-emerald-500 hover:bg-slate-800/50">
+                    <div class="flex flex-col items-center">
+                        <div class="w-14 h-14 bg-slate-700/50 rounded-2xl flex items-center justify-center mb-4">
+                            <svg class="w-7 h-7 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                        </div>
+                        <p class="text-lg font-medium text-slate-300 mb-1">Excel de Audiencia</p>
+                        <p class="text-sm text-slate-500">Arrastra o haz clic</p>
+                        <p class="text-xs text-slate-600 mt-2">Formato: .xlsx o .xls</p>
+                    </div>
+                    <input type="file" id="audienceFileInput" accept=".xlsx,.xls" class="hidden">
+                </div>
+
+                <!-- Expected Format Info -->
+                <div class="bg-slate-800/50 rounded-2xl p-6 border border-slate-700/50">
+                    <h4 class="font-medium text-slate-200 mb-3 flex items-center">
+                        <svg class="w-5 h-5 mr-2 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        Formato esperado
+                    </h4>
+                    <div class="text-sm text-slate-400 space-y-2">
+                        <p>El Excel debe tener:</p>
+                        <ul class="list-disc list-inside space-y-1 ml-2">
+                            <li>Columna <strong class="text-slate-300">Emisora</strong> con nombres</li>
+                            <li>Columnas de <strong class="text-slate-300">ciudades</strong> (Arequipa, Piura, etc.)</li>
+                            <li>Valores numéricos de audiencia</li>
+                        </ul>
+                        <div class="mt-4 p-3 bg-slate-700/50 rounded-lg text-xs">
+                            <p class="text-slate-300 mb-1">Ejemplo:</p>
+                            <code class="text-emerald-400">Emisora | Arequipa | Piura | ...</code>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex justify-center gap-4 mt-8">
+                <button id="skipAudienceBtn" class="px-6 py-2 bg-slate-600 hover:bg-slate-500 rounded-lg text-sm font-medium transition-colors">
+                    Omitir este paso
+                </button>
+                <button id="continueWithAudienceBtn" class="hidden px-6 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-sm font-medium transition-colors">
+                    Continuar con audiencia
+                </button>
+            </div>
+        </section>
+
+        <!-- Mapping Validation Section -->
+        <section id="mappingSection" class="hidden fade-in max-w-5xl mx-auto">
+            <div class="text-center mb-8">
+                <h2 class="text-3xl font-bold mb-3 bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent">
+                    Validar Mapeo de Emisoras
+                </h2>
+                <p class="text-slate-400">Verifica que las emisoras coincidan correctamente</p>
+            </div>
+
+            <div class="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700/50 p-6">
+                <!-- Legend -->
+                <div class="flex items-center gap-6 mb-4 text-sm">
+                    <div class="flex items-center">
+                        <div class="w-4 h-4 rounded match-high mr-2"></div>
+                        <span class="text-slate-400">Alta coincidencia (&gt;80%)</span>
+                    </div>
+                    <div class="flex items-center">
+                        <div class="w-4 h-4 rounded match-medium mr-2"></div>
+                        <span class="text-slate-400">Media (50-80%)</span>
+                    </div>
+                    <div class="flex items-center">
+                        <div class="w-4 h-4 rounded match-low mr-2"></div>
+                        <span class="text-slate-400">Baja (&lt;50%)</span>
+                    </div>
+                </div>
+
+                <div class="mapping-container">
+                    <table class="w-full text-sm">
+                        <thead class="text-left border-b border-slate-600">
+                            <tr>
+                                <th class="px-4 py-3 text-slate-300 font-medium">Emisora (TXT)</th>
+                                <th class="px-4 py-3 text-slate-300 font-medium">Emisora Mapeada (Excel)</th>
+                                <th class="px-4 py-3 text-slate-300 font-medium">Coincidencia</th>
+                                <th class="px-4 py-3 text-slate-300 font-medium">Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody id="mappingTableBody">
+                            <!-- Mapping rows will be inserted here -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="flex justify-end gap-4 mt-6 pt-4 border-t border-slate-700">
+                    <button id="backToAudienceBtn" class="px-4 py-2 bg-slate-600 hover:bg-slate-500 rounded-lg text-sm font-medium transition-colors">
+                        Volver
+                    </button>
+                    <button id="confirmMappingBtn" class="px-6 py-2 bg-primary-600 hover:bg-primary-700 rounded-lg text-sm font-medium transition-colors">
+                        Confirmar y Continuar
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Configuration Section - Step 3 -->
         <section id="configSection" class="hidden fade-in max-w-6xl mx-auto">
             <div class="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700/50 p-6 mb-6">
                 <h3 class="text-lg font-semibold mb-4 flex items-center">
@@ -202,14 +345,27 @@
                         </button>
                     </div>
                 </div>
+
+                <!-- Audience Column Toggle -->
+                <div id="audienceToggle" class="hidden mt-4 pt-4 border-t border-slate-700">
+                    <label class="flex items-center cursor-pointer">
+                        <input type="checkbox" id="includeAudience" class="sr-only peer" checked>
+                        <div class="relative w-11 h-6 bg-slate-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                        <span class="ms-3 text-sm text-slate-300">Incluir columna de Audiencia</span>
+                    </label>
+                    <p class="text-xs text-slate-500 mt-1 ml-14">Agrega el valor de audiencia según región y emisora</p>
+                </div>
             </div>
 
             <!-- Quick Presets -->
             <div class="bg-slate-800/30 rounded-xl border border-slate-700/30 p-4 mb-6">
                 <p class="text-sm text-slate-400 mb-3">Configuraciones rápidas:</p>
                 <div class="flex flex-wrap gap-2">
-                    <button class="preset-btn px-3 py-1.5 bg-slate-700/50 hover:bg-slate-600/50 rounded-lg text-xs text-slate-300 transition-colors" data-preset="yearMonthRegion">
-                        Año → Mes → Región (Spots)
+                    <button class="preset-btn px-3 py-1.5 bg-slate-700/50 hover:bg-slate-600/50 rounded-lg text-xs text-slate-300 transition-colors" data-preset="yearMonthRegionEmisora">
+                        Año → Mes → Región → Emisora (Spots)
+                    </button>
+                    <button class="preset-btn px-3 py-1.5 bg-slate-700/50 hover:bg-slate-600/50 rounded-lg text-xs text-slate-300 transition-colors" data-preset="regionEmisora">
+                        Región → Emisora (Spots)
                     </button>
                     <button class="preset-btn px-3 py-1.5 bg-slate-700/50 hover:bg-slate-600/50 rounded-lg text-xs text-slate-300 transition-colors" data-preset="medioEmisora">
                         Medio → Emisora (Spots)
@@ -217,18 +373,15 @@
                     <button class="preset-btn px-3 py-1.5 bg-slate-700/50 hover:bg-slate-600/50 rounded-lg text-xs text-slate-300 transition-colors" data-preset="marcaProducto">
                         Marca → Producto (Inversión)
                     </button>
-                    <button class="preset-btn px-3 py-1.5 bg-slate-700/50 hover:bg-slate-600/50 rounded-lg text-xs text-slate-300 transition-colors" data-preset="sectorCategoria">
-                        Sector → Categoría (Conteo)
-                    </button>
                 </div>
             </div>
         </section>
 
-        <!-- Results Section -->
+        <!-- Results Section - Step 4 -->
         <section id="resultsSection" class="hidden fade-in max-w-7xl mx-auto">
             <div class="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700/50 overflow-hidden">
                 <!-- Results Header -->
-                <div class="px-6 py-4 border-b border-slate-700/50 flex items-center justify-between">
+                <div class="px-6 py-4 border-b border-slate-700/50 flex flex-wrap items-center justify-between gap-4">
                     <div>
                         <h3 class="text-lg font-semibold flex items-center">
                             <svg class="w-5 h-5 mr-2 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -279,6 +432,28 @@
             </p>
         </div>
     </footer>
+
+    <!-- Mapping Edit Modal -->
+    <div id="mappingModal" class="hidden fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+        <div class="bg-slate-800 rounded-2xl p-6 max-w-md w-full mx-4 border border-slate-700">
+            <h4 class="text-lg font-semibold mb-4">Editar Mapeo</h4>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1">Emisora del TXT:</label>
+                    <p id="modalTxtEmisora" class="text-white font-medium"></p>
+                </div>
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1">Seleccionar emisora del Excel:</label>
+                    <select id="modalEmisoraSelect" class="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm">
+                    </select>
+                </div>
+            </div>
+            <div class="flex justify-end gap-3 mt-6">
+                <button id="modalCancelBtn" class="px-4 py-2 bg-slate-600 hover:bg-slate-500 rounded-lg text-sm">Cancelar</button>
+                <button id="modalSaveBtn" class="px-4 py-2 bg-primary-600 hover:bg-primary-700 rounded-lg text-sm">Guardar</button>
+            </div>
+        </div>
+    </div>
 
     <script src="app.js"></script>
 </body>
