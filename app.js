@@ -180,7 +180,14 @@ function parseData(content) {
 
     // Parse headers
     const headerLine = lines[headerLineIndex];
-    headers = headerLine.split('|').map(h => h.trim().replace(/^#/, ''));
+    headers = headerLine.split('|').map(h => {
+        let header = h.trim().replace(/^#/, '');
+        // Normalize region column name for consistent matching
+        if (header === 'REGION/ÁMBITO' || header === 'REGION/AMBITO') {
+            header = 'REGION';
+        }
+        return header;
+    });
 
     // Add computed fields
     headers.push('AÑO');
@@ -691,14 +698,14 @@ function applyPreset(preset) {
             addRowFieldSelect();
             document.getElementById('rowField2').value = 'MES_NOMBRE';
             addRowFieldSelect();
-            document.getElementById('rowField3').value = 'REGION/ÁMBITO';
+            document.getElementById('rowField3').value = 'REGION';
             addRowFieldSelect();
             document.getElementById('rowField4').value = 'EMISORA/SITE';
             valueField.value = 'SPOTS';
             aggregationType.value = 'sum';
             break;
         case 'regionEmisora':
-            rowField1.value = 'REGION/ÁMBITO';
+            rowField1.value = 'REGION';
             addRowFieldSelect();
             document.getElementById('rowField2').value = 'EMISORA/SITE';
             valueField.value = 'SPOTS';
@@ -804,7 +811,7 @@ function createPivotData(rowFields, valueField, aggregationType, includeAudience
     const pivot = new Map();
 
     // Check if we have region and emisora fields for audience lookup
-    const regionFieldIndex = rowFields.indexOf('REGION/ÁMBITO');
+    const regionFieldIndex = rowFields.indexOf('REGION');
     const emisoraFieldIndex = rowFields.indexOf('EMISORA/SITE');
 
     parsedData.forEach(row => {
