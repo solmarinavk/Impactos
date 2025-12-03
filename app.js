@@ -1200,20 +1200,7 @@ function renderPivotTable(rowFields, valueField, aggregationType, pivotData, inc
     });
 
     tbody.innerHTML = html;
-
-    // Build footer with totals
-    let footerColspan = rowFields.length;
-    let footerHtml = `
-        <tr class="border-t-2 border-slate-600 bg-slate-700/50">
-            <td colspan="${footerColspan}" class="px-4 py-3 text-slate-300 font-bold">TOTAL</td>
-            <td class="px-4 py-3 text-right text-white font-bold">${formatNumber(grandTotal, aggregationType)}</td>
-    `;
-    if (includeAudience) {
-        footerHtml += `<td class="px-4 py-3 text-right text-slate-500">-</td>`;
-        footerHtml += `<td class="px-4 py-3 text-right text-amber-400 font-bold">${grandTotalImpactos.toFixed(2)}</td>`;
-    }
-    footerHtml += '</tr>';
-    tfoot.innerHTML = footerHtml;
+    tfoot.innerHTML = '';
 
     // Update summary
     document.getElementById('resultsSummary').textContent =
