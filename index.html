@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Impactos - Generador de Tablas Dinámicas</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        'inter': ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            200: '#bae6fd',
+                            300: '#7dd3fc',
+                            400: '#38bdf8',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            700: '#0369a1',
+                            800: '#075985',
+                            900: '#0c4a6e',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .drag-over {
+            border-color: #0ea5e9 !important;
+            background-color: #f0f9ff !important;
+        }
+        .fade-in {
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .table-container {
+            max-height: 600px;
+            overflow: auto;
+        }
+        .pivot-table th {
+            position: sticky;
+            top: 0;
+            background: #1e293b;
+            z-index: 10;
+        }
+        .loading-spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #0ea5e9;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 min-h-screen text-white">
+
+    <!-- Header -->
+    <header class="border-b border-slate-700/50 backdrop-blur-sm bg-slate-900/50 sticky top-0 z-50">
+        <div class="container mx-auto px-6 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-gradient-to-br from-primary-400 to-primary-600 rounded-xl flex items-center justify-center">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                        </svg>
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-bold text-white">Impactos</h1>
+                        <p class="text-xs text-slate-400">Generador de Tablas Dinámicas</p>
+                    </div>
+                </div>
+                <div id="fileInfo" class="hidden text-sm text-slate-400">
+                    <span id="fileName" class="text-primary-400 font-medium"></span>
+                    <span id="rowCount" class="ml-2"></span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-6 py-8">
+
+        <!-- Upload Section -->
+        <section id="uploadSection" class="max-w-2xl mx-auto">
+            <div class="text-center mb-8">
+                <h2 class="text-3xl font-bold mb-3 bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent">
+                    Carga tu archivo TXT
+                </h2>
+                <p class="text-slate-400">Arrastra tu archivo o haz clic para seleccionarlo</p>
+            </div>
+
+            <div id="dropZone" class="border-2 border-dashed border-slate-600 rounded-2xl p-12 text-center cursor-pointer transition-all duration-300 hover:border-primary-500 hover:bg-slate-800/50">
+                <div class="flex flex-col items-center">
+                    <div class="w-16 h-16 bg-slate-700/50 rounded-2xl flex items-center justify-center mb-4">
+                        <svg class="w-8 h-8 text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                        </svg>
+                    </div>
+                    <p class="text-lg font-medium text-slate-300 mb-1">Arrastra tu archivo aquí</p>
+                    <p class="text-sm text-slate-500">o haz clic para seleccionar</p>
+                    <p class="text-xs text-slate-600 mt-3">Formato: TXT delimitado por |</p>
+                </div>
+                <input type="file" id="fileInput" accept=".txt" class="hidden">
+            </div>
+        </section>
+
+        <!-- Configuration Section -->
+        <section id="configSection" class="hidden fade-in max-w-6xl mx-auto">
+            <div class="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700/50 p-6 mb-6">
+                <h3 class="text-lg font-semibold mb-4 flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path>
+                    </svg>
+                    Configura tu Tabla Dinámica
+                </h3>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <!-- Row Fields -->
+                    <div class="space-y-3">
+                        <label class="block text-sm font-medium text-slate-300">
+                            <span class="flex items-center">
+                                <svg class="w-4 h-4 mr-1 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                                </svg>
+                                Filas (agrupa por)
+                            </span>
+                        </label>
+                        <div id="rowFieldsContainer" class="space-y-2">
+                            <select id="rowField1" class="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent">
+                                <option value="">Selecciona campo...</option>
+                            </select>
+                        </div>
+                        <button id="addRowField" class="text-xs text-primary-400 hover:text-primary-300 flex items-center">
+                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                            </svg>
+                            Agregar nivel
+                        </button>
+                    </div>
+
+                    <!-- Value Field -->
+                    <div class="space-y-3">
+                        <label class="block text-sm font-medium text-slate-300">
+                            <span class="flex items-center">
+                                <svg class="w-4 h-4 mr-1 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"></path>
+                                </svg>
+                                Valores
+                            </span>
+                        </label>
+                        <select id="valueField" class="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent">
+                            <option value="">Selecciona campo...</option>
+                        </select>
+                    </div>
+
+                    <!-- Aggregation Type -->
+                    <div class="space-y-3">
+                        <label class="block text-sm font-medium text-slate-300">
+                            <span class="flex items-center">
+                                <svg class="w-4 h-4 mr-1 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                                </svg>
+                                Tipo de Cálculo
+                            </span>
+                        </label>
+                        <select id="aggregationType" class="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent">
+                            <option value="sum">Suma</option>
+                            <option value="count">Conteo</option>
+                            <option value="average">Promedio</option>
+                            <option value="min">Mínimo</option>
+                            <option value="max">Máximo</option>
+                        </select>
+                    </div>
+
+                    <!-- Generate Button -->
+                    <div class="flex items-end">
+                        <button id="generateBtn" class="w-full bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white font-medium py-2 px-4 rounded-lg transition-all duration-300 flex items-center justify-center">
+                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                            </svg>
+                            Generar Tabla
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Presets -->
+            <div class="bg-slate-800/30 rounded-xl border border-slate-700/30 p-4 mb-6">
+                <p class="text-sm text-slate-400 mb-3">Configuraciones rápidas:</p>
+                <div class="flex flex-wrap gap-2">
+                    <button class="preset-btn px-3 py-1.5 bg-slate-700/50 hover:bg-slate-600/50 rounded-lg text-xs text-slate-300 transition-colors" data-preset="yearMonthRegion">
+                        Año → Mes → Región (Spots)
+                    </button>
+                    <button class="preset-btn px-3 py-1.5 bg-slate-700/50 hover:bg-slate-600/50 rounded-lg text-xs text-slate-300 transition-colors" data-preset="medioEmisora">
+                        Medio → Emisora (Spots)
+                    </button>
+                    <button class="preset-btn px-3 py-1.5 bg-slate-700/50 hover:bg-slate-600/50 rounded-lg text-xs text-slate-300 transition-colors" data-preset="marcaProducto">
+                        Marca → Producto (Inversión)
+                    </button>
+                    <button class="preset-btn px-3 py-1.5 bg-slate-700/50 hover:bg-slate-600/50 rounded-lg text-xs text-slate-300 transition-colors" data-preset="sectorCategoria">
+                        Sector → Categoría (Conteo)
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Results Section -->
+        <section id="resultsSection" class="hidden fade-in max-w-7xl mx-auto">
+            <div class="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700/50 overflow-hidden">
+                <!-- Results Header -->
+                <div class="px-6 py-4 border-b border-slate-700/50 flex items-center justify-between">
+                    <div>
+                        <h3 class="text-lg font-semibold flex items-center">
+                            <svg class="w-5 h-5 mr-2 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                            Tabla Dinámica
+                        </h3>
+                        <p id="resultsSummary" class="text-sm text-slate-400 mt-1"></p>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                        <button id="exportExcel" class="flex items-center px-4 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-sm font-medium transition-colors">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                            Exportar Excel
+                        </button>
+                        <button id="newAnalysis" class="flex items-center px-4 py-2 bg-slate-600 hover:bg-slate-500 rounded-lg text-sm font-medium transition-colors">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                            </svg>
+                            Nueva Configuración
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Table Container -->
+                <div class="table-container p-4">
+                    <div id="loadingIndicator" class="hidden flex items-center justify-center py-12">
+                        <div class="loading-spinner mr-3"></div>
+                        <span class="text-slate-400">Procesando datos...</span>
+                    </div>
+                    <table id="pivotTable" class="pivot-table w-full text-sm">
+                        <thead id="pivotHead" class="text-left"></thead>
+                        <tbody id="pivotBody"></tbody>
+                        <tfoot id="pivotFoot" class="bg-slate-700/50 font-semibold"></tfoot>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-slate-700/50 mt-12">
+        <div class="container mx-auto px-6 py-4">
+            <p class="text-center text-sm text-slate-500">
+                Impactos - Generador de Tablas Dinámicas © 2024
+            </p>
+        </div>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+</html>
