@@ -78,6 +78,9 @@ function setupEventListeners() {
         configSection.classList.remove('hidden');
         updateStepIndicator(3);
     });
+
+    // Initialize drag and drop for row fields
+    initDragAndDrop();
 }
 
 // Step indicator update
@@ -194,6 +197,7 @@ function parseData(content) {
     headers.push('AÑO');
     headers.push('MES');
     headers.push('MES_NOMBRE');
+    headers.push('SEMANA');
 
     // Parse data rows
     parsedData = [];
@@ -202,7 +206,7 @@ function parseData(content) {
         if (!line || line.startsWith('#')) continue;
 
         const values = line.split('|').map(v => v.trim());
-        if (values.length < headers.length - 3) continue;
+        if (values.length < headers.length - 4) continue; // -4 for computed fields
 
         const row = {};
         headers.forEach((header, index) => {
@@ -211,14 +215,19 @@ function parseData(content) {
             }
         });
 
-        // Compute year and month from DIA field
+        // Compute year, month and week from DIA field
         const dateField = row['DIA'] || '';
         if (dateField) {
             const dateParts = dateField.split('/');
             if (dateParts.length === 3) {
+                const day = parseInt(dateParts[0]);
+                const month = parseInt(dateParts[1]);
+                const year = parseInt(dateParts[2]);
+
                 row['AÑO'] = dateParts[2];
                 row['MES'] = dateParts[1];
-                row['MES_NOMBRE'] = getMonthName(parseInt(dateParts[1]));
+                row['MES_NOMBRE'] = getMonthName(month);
+                row['SEMANA'] = getWeekNumber(year, month, day);
             }
         }
 
@@ -232,6 +241,19 @@ function getMonthName(month) {
         'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
     ];
     return months[month - 1] || '';
+}
+
+// Get ISO week number (weeks start on Monday)
+function getWeekNumber(year, month, day) {
+    const date = new Date(year, month - 1, day);
+    // Set to nearest Thursday: current date + 4 - current day number (Monday = 1)
+    const dayNum = date.getDay() || 7; // Convert Sunday (0) to 7
+    date.setDate(date.getDate() + 4 - dayNum);
+    // Get first day of year
+    const yearStart = new Date(date.getFullYear(), 0, 1);
+    // Calculate full weeks to nearest Thursday
+    const weekNo = Math.ceil((((date - yearStart) / 86400000) + 1) / 7);
+    return `Sem ${weekNo}`;
 }
 
 // Audience file processing - Step 2
@@ -664,66 +686,150 @@ function populateFieldSelectors() {
 // Add row field selector
 function addRowFieldSelect() {
     rowFieldCount++;
-    const select = document.createElement('select');
-    select.id = `rowField${rowFieldCount}`;
-    select.className = 'w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent';
 
     const wrapper = document.createElement('div');
-    wrapper.className = 'flex items-center space-x-2';
+    wrapper.className = 'row-field-item flex items-center space-x-2 bg-slate-700/30 rounded-lg p-1';
+    wrapper.draggable = true;
+    wrapper.dataset.fieldId = rowFieldCount;
+
+    // Drag handle
+    const dragHandle = document.createElement('div');
+    dragHandle.className = 'drag-handle px-1 text-slate-500 hover:text-slate-300';
+    dragHandle.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16"></path></svg>';
+    wrapper.appendChild(dragHandle);
+
+    // Select
+    const select = document.createElement('select');
+    select.id = `rowField${rowFieldCount}`;
+    select.className = 'flex-1 bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent';
     wrapper.appendChild(select);
 
+    // Remove button
     const removeBtn = document.createElement('button');
-    removeBtn.className = 'text-red-400 hover:text-red-300';
+    removeBtn.className = 'text-red-400 hover:text-red-300 px-1';
     removeBtn.innerHTML = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>';
     removeBtn.onclick = () => wrapper.remove();
     wrapper.appendChild(removeBtn);
+
+    // Add drag events
+    addDragEventsToItem(wrapper);
 
     rowFieldsContainer.appendChild(wrapper);
     populateFieldSelectors();
 }
 
+// Drag and Drop functionality
+let draggedItem = null;
+
+function addDragEventsToItem(item) {
+    item.addEventListener('dragstart', handleDragStart);
+    item.addEventListener('dragend', handleDragEnd);
+    item.addEventListener('dragover', handleItemDragOver);
+    item.addEventListener('dragleave', handleItemDragLeave);
+    item.addEventListener('drop', handleItemDrop);
+}
+
+function handleDragStart(e) {
+    draggedItem = this;
+    this.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+}
+
+function handleDragEnd(e) {
+    this.classList.remove('dragging');
+    document.querySelectorAll('.row-field-item').forEach(item => {
+        item.classList.remove('drag-over-item');
+    });
+    draggedItem = null;
+}
+
+function handleItemDragOver(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (this !== draggedItem) {
+        this.classList.add('drag-over-item');
+    }
+}
+
+function handleItemDragLeave(e) {
+    this.classList.remove('drag-over-item');
+}
+
+function handleItemDrop(e) {
+    e.preventDefault();
+    this.classList.remove('drag-over-item');
+
+    if (draggedItem && this !== draggedItem) {
+        const container = rowFieldsContainer;
+        const items = [...container.querySelectorAll('.row-field-item')];
+        const draggedIdx = items.indexOf(draggedItem);
+        const targetIdx = items.indexOf(this);
+
+        if (draggedIdx < targetIdx) {
+            container.insertBefore(draggedItem, this.nextSibling);
+        } else {
+            container.insertBefore(draggedItem, this);
+        }
+    }
+}
+
+// Initialize drag events on page load
+function initDragAndDrop() {
+    document.querySelectorAll('.row-field-item').forEach(item => {
+        addDragEventsToItem(item);
+    });
+}
+
 // Apply presets
 function applyPreset(preset) {
-    // Clear existing row fields except first
-    const existingFields = rowFieldsContainer.querySelectorAll('div');
-    existingFields.forEach(div => div.remove());
-    rowFieldCount = 1;
+    // Clear all existing row fields
+    rowFieldsContainer.innerHTML = '';
+    rowFieldCount = 0;
 
-    const rowField1 = document.getElementById('rowField1');
     const valueField = document.getElementById('valueField');
     const aggregationType = document.getElementById('aggregationType');
 
+    // Helper function to add a field with a value
+    const addFieldWithValue = (value) => {
+        addRowFieldSelect();
+        const select = document.getElementById(`rowField${rowFieldCount}`);
+        if (select) select.value = value;
+    };
+
     switch(preset) {
         case 'yearMonthRegionEmisora':
-            rowField1.value = 'AÑO';
-            addRowFieldSelect();
-            document.getElementById('rowField2').value = 'MES_NOMBRE';
-            addRowFieldSelect();
-            document.getElementById('rowField3').value = 'REGION';
-            addRowFieldSelect();
-            document.getElementById('rowField4').value = 'EMISORA/SITE';
+            addFieldWithValue('AÑO');
+            addFieldWithValue('MES_NOMBRE');
+            addFieldWithValue('REGION');
+            addFieldWithValue('EMISORA/SITE');
             valueField.value = 'SPOTS';
             aggregationType.value = 'sum';
             break;
         case 'regionEmisora':
-            rowField1.value = 'REGION';
-            addRowFieldSelect();
-            document.getElementById('rowField2').value = 'EMISORA/SITE';
+            addFieldWithValue('REGION');
+            addFieldWithValue('EMISORA/SITE');
             valueField.value = 'SPOTS';
             aggregationType.value = 'sum';
             break;
         case 'medioEmisora':
-            rowField1.value = 'MEDIO';
-            addRowFieldSelect();
-            document.getElementById('rowField2').value = 'EMISORA/SITE';
+            addFieldWithValue('MEDIO');
+            addFieldWithValue('EMISORA/SITE');
             valueField.value = 'SPOTS';
             aggregationType.value = 'sum';
             break;
         case 'marcaProducto':
-            rowField1.value = 'MARCA';
-            addRowFieldSelect();
-            document.getElementById('rowField2').value = 'PRODUCTO';
+            addFieldWithValue('MARCA');
+            addFieldWithValue('PRODUCTO');
             valueField.value = 'INVERSION';
+            aggregationType.value = 'sum';
+            break;
+        case 'yearMonthMarcaRegionEmisora':
+            addFieldWithValue('AÑO');
+            addFieldWithValue('MES_NOMBRE');
+            addFieldWithValue('MARCA');
+            addFieldWithValue('REGION');
+            addFieldWithValue('EMISORA/SITE');
+            valueField.value = 'SPOTS';
             aggregationType.value = 'sum';
             break;
     }
@@ -772,14 +878,15 @@ function getAudienceValue(region, emisora) {
 
 // Generate pivot table
 function generatePivotTable() {
-    // Get selected fields
+    // Get selected fields in DOM order (respects drag & drop reordering)
     const rowFields = [];
-    for (let i = 1; i <= rowFieldCount; i++) {
-        const select = document.getElementById(`rowField${i}`);
+    const fieldItems = rowFieldsContainer.querySelectorAll('.row-field-item');
+    fieldItems.forEach(item => {
+        const select = item.querySelector('select');
         if (select && select.value) {
             rowFields.push(select.value);
         }
-    }
+    });
 
     const valueField = document.getElementById('valueField').value;
     const aggregationType = document.getElementById('aggregationType').value;
