@@ -1113,45 +1113,33 @@ function exportToExcel() {
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.table_to_sheet(table);
 
-    // Get table dimensions for table formatting
+    // Get table dimensions
     const range = XLSX.utils.decode_range(ws['!ref']);
-    const numRows = range.e.r + 1;
     const numCols = range.e.c + 1;
 
-    // Add table formatting (Excel table style)
-    if (!ws['!tables']) ws['!tables'] = [];
-    ws['!tables'].push({
-        name: 'ImpactosRadio',
-        ref: ws['!ref'],
-        headerRow: true,
-        totalsRow: true,
-        style: {
-            theme: 'TableStyleMedium2',
-            showRowStripes: true
-        }
-    });
+    // Add autofilter (creates filter dropdowns like a table)
+    ws['!autofilter'] = { ref: ws['!ref'] };
 
     // Set column widths for better readability
     ws['!cols'] = [];
     for (let i = 0; i < numCols; i++) {
-        ws['!cols'].push({ wch: 15 }); // 15 characters width
+        ws['!cols'].push({ wch: 18 }); // 18 characters width
     }
+
+    // Freeze first row (header)
+    ws['!freeze'] = { xSplit: 0, ySplit: 1 };
 
     XLSX.utils.book_append_sheet(wb, ws, 'Impactos Radio');
 
     // Generate filename with date and time
     const now = new Date();
-    const dateStr = now.toLocaleDateString('es-PE', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-    }).replace(/\//g, '-');
-    const timeStr = now.toLocaleTimeString('es-PE', {
-        hour: '2-digit',
-        minute: '2-digit'
-    }).replace(/:/g, '');
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
 
-    const fileName = `Impactos Radio_${dateStr}_${timeStr}.xlsx`;
+    const fileName = `Impactos Radio_${day}-${month}-${year}_${hours}${minutes}.xlsx`;
     XLSX.writeFile(wb, fileName);
 }
 
