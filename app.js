@@ -1110,8 +1110,16 @@ function formatNumber(value, aggregationType) {
 // Export to Excel
 function exportToExcel() {
     const table = document.getElementById('pivotTable');
+
+    // Create a clone of the table without the footer (TOTAL row)
+    const tableClone = table.cloneNode(true);
+    const tfoot = tableClone.querySelector('tfoot');
+    if (tfoot) {
+        tfoot.remove();
+    }
+
     const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.table_to_sheet(table);
+    const ws = XLSX.utils.table_to_sheet(tableClone);
 
     // Get table dimensions
     const range = XLSX.utils.decode_range(ws['!ref']);
