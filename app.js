@@ -182,8 +182,9 @@ function parseData(content) {
     const headerLine = lines[headerLineIndex];
     headers = headerLine.split('|').map(h => {
         let header = h.trim().replace(/^#/, '');
-        // Normalize region column name for consistent matching
-        if (header === 'REGION/ÁMBITO' || header === 'REGION/AMBITO') {
+        // Normalize region column name for consistent matching (handle encoding issues)
+        // Match any variation: REGION/ÁMBITO, REGION/AMBITO, REGION/�MBITO, etc.
+        if (header.toUpperCase().startsWith('REGION/') || header.toUpperCase().includes('MBITO')) {
             header = 'REGION';
         }
         return header;
