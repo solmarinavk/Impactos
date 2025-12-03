@@ -730,14 +730,35 @@ function getAudienceValue(region, emisora) {
 
     // Get mapped emisora
     const mapping = emisoraMapping[emisora];
+
+    // Debug logging (first few calls only)
+    if (!window._audienceDebugCount) window._audienceDebugCount = 0;
+    if (window._audienceDebugCount < 5) {
+        console.log('getAudienceValue debug:', {
+            region,
+            normalizedRegion,
+            emisora,
+            mapping,
+            availableRegions: audienceRegions,
+            availableEmisoras: audienceEmisoras.slice(0, 5)
+        });
+        window._audienceDebugCount++;
+    }
+
     if (!mapping || !mapping.excelEmisora) return null;
 
     // Find audience data
     const audienceRow = audienceData.find(a => a.emisora === mapping.excelEmisora);
-    if (!audienceRow) return null;
+    if (!audienceRow) {
+        console.log('No audienceRow found for:', mapping.excelEmisora);
+        return null;
+    }
 
     // Find matching region
     const value = audienceRow.values[normalizedRegion];
+    if (value === undefined && window._audienceDebugCount < 10) {
+        console.log('Region not found:', normalizedRegion, 'Available:', Object.keys(audienceRow.values));
+    }
     return value !== undefined ? value : null;
 }
 
