@@ -424,7 +424,22 @@ function normalizeString(str) {
         .toUpperCase()
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '') // Remove accents
+        // Remove common radio suffixes
+        .replace(/\s*(FM|AM|F\.M\.|A\.M\.)\s*/g, '')
         .replace(/[^A-Z0-9]/g, '') // Keep only alphanumeric
+        .trim();
+}
+
+// Normalize emisora name for better matching
+function normalizeEmisoraName(name) {
+    return name
+        .toUpperCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '') // Remove accents
+        // Remove common radio suffixes
+        .replace(/\s*(FM|AM|F\.M\.|A\.M\.)\s*$/g, '')
+        .replace(/\./g, '') // Remove dots (R.P.P. -> RPP)
+        .replace(/\s+/g, ' ') // Normalize spaces
         .trim();
 }
 
@@ -449,6 +464,14 @@ function levenshteinDistance(str1, str2) {
 }
 
 function calculateSimilarity(str1, str2) {
+    // First try with emisora-specific normalization
+    const emisora1 = normalizeEmisoraName(str1);
+    const emisora2 = normalizeEmisoraName(str2);
+
+    // Exact match after emisora normalization (e.g., "LA ZONA FM" vs "La Zona")
+    if (emisora1 === emisora2) return 100;
+
+    // Now use general string normalization
     const norm1 = normalizeString(str1);
     const norm2 = normalizeString(str2);
 
@@ -462,7 +485,14 @@ function calculateSimilarity(str1, str2) {
         return Math.round((shorter / longer) * 100);
     }
 
-    // Levenshtein distance
+    // Check with emisora names too
+    if (emisora1.includes(emisora2) || emisora2.includes(emisora1)) {
+        const longer = Math.max(emisora1.length, emisora2.length);
+        const shorter = Math.min(emisora1.length, emisora2.length);
+        return Math.round((shorter / longer) * 100);
+    }
+
+    // Levenshtein distance on normalized strings
     const maxLen = Math.max(norm1.length, norm2.length);
     if (maxLen === 0) return 100;
 
