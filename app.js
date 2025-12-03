@@ -279,52 +279,78 @@ function parseAudienceData(jsonData) {
     audienceEmisoras = [];
     audienceRegions = [];
 
-    // Find the emisora column (must be named "Emisora" or similar)
     const firstRow = jsonData[0];
     const keys = Object.keys(firstRow);
 
-    // Look specifically for "Emisora" column (case insensitive)
-    let emisoraKey = keys.find(k => k.toLowerCase().trim() === 'emisora');
-
-    // If not found, try to find a column that contains "emisora"
-    if (!emisoraKey) {
-        emisoraKey = keys.find(k => k.toLowerCase().includes('emisora'));
-    }
-
-    if (!emisoraKey) {
-        alert('No se encontró la columna "Emisora" en el Excel. Asegúrate de que exista una columna llamada "Emisora".');
-        return;
-    }
+    console.log('Excel columns:', keys);
+    console.log('First row data:', firstRow);
 
     // Known city/region names to look for
     const knownRegions = ['AREQUIPA', 'CHICLAYO', 'CUSCO', 'HUANCAYO', 'PIURA', 'TRUJILLO', 'LIMA', 'ICA', 'TACNA', 'PUNO'];
 
-    // Get region columns - look for known city names or numeric columns that aren't metadata
+    // Columns to skip (not emisoras, not regions)
+    const skipColumns = ['rnkg', 'ranking', 'frc', 'frc.', '%', 'miles', 'frecuencia'];
+
+    // Find emisora column by these criteria:
+    // 1. Named "Emisora" (case insensitive)
+    // 2. Contains mostly text values (not numbers)
+    // 3. Not a known region or metadata column
+    let emisoraKey = null;
+
+    // First try: exact match for "Emisora"
+    emisoraKey = keys.find(k => k.toLowerCase().trim() === 'emisora');
+
+    // Second try: contains "emisora"
+    if (!emisoraKey) {
+        emisoraKey = keys.find(k => k.toLowerCase().includes('emisora'));
+    }
+
+    // Third try: find column with text values that are NOT numbers and NOT regions
+    if (!emisoraKey) {
+        emisoraKey = keys.find(k => {
+            const keyLower = k.toLowerCase().trim();
+            const keyUpper = k.toUpperCase().trim();
+
+            // Skip known non-emisora columns
+            if (skipColumns.includes(keyLower)) return false;
+            if (knownRegions.some(r => keyUpper.includes(r))) return false;
+
+            // Check if most values in this column are text (not numbers)
+            const textCount = jsonData.filter(row => {
+                const val = row[k];
+                if (!val) return false;
+                const strVal = val.toString().trim();
+                // Is text if it contains letters and is not just a number
+                return /[a-zA-Z]/.test(strVal) && isNaN(parseFloat(strVal));
+            }).length;
+
+            // If more than half the rows have text values, this might be the emisora column
+            return textCount > jsonData.length * 0.3;
+        });
+    }
+
+    if (!emisoraKey) {
+        alert('No se encontró la columna de Emisoras en el Excel. Asegúrate de que exista una columna con nombres de emisoras.');
+        console.error('Could not find emisora column. Keys:', keys);
+        return;
+    }
+
+    console.log('Detected emisora column:', emisoraKey);
+
+    // Get region columns - look for known city names
     const regionKeys = keys.filter(k => {
         const keyUpper = k.toUpperCase().trim();
+        const keyLower = k.toLowerCase().trim();
 
         // Skip known non-region columns
-        if (k.toLowerCase().includes('emisora') ||
-            k.toLowerCase().includes('rnkg') ||
-            k.toLowerCase().includes('ranking') ||
-            k.toLowerCase().includes('frc') ||
-            k.toLowerCase() === '%' ||
-            k.toLowerCase() === 'miles' ||
-            k.toLowerCase() === 'frecuencia') {
-            return false;
-        }
+        if (keyLower === emisoraKey.toLowerCase()) return false;
+        if (skipColumns.includes(keyLower)) return false;
 
         // Include if it matches a known region name
-        if (knownRegions.some(region => keyUpper.includes(region))) {
-            return true;
-        }
-
-        // Or if it has numeric values and looks like a city name (not a number/percentage)
-        const hasNumericValues = jsonData.some(row => !isNaN(parseFloat(row[k])));
-        const looksLikeCity = /^[A-Za-záéíóúÁÉÍÓÚñÑ\s]+$/.test(k.trim());
-
-        return hasNumericValues && looksLikeCity;
+        return knownRegions.some(region => keyUpper.includes(region));
     });
+
+    console.log('Detected region columns:', regionKeys);
 
     // Normalize region names to uppercase
     audienceRegions = regionKeys.map(r => r.toUpperCase().trim());
@@ -332,10 +358,17 @@ function parseAudienceData(jsonData) {
     // Process each row
     jsonData.forEach(row => {
         const emisora = row[emisoraKey];
-        // Skip header rows or empty rows
-        if (!emisora ||
-            emisora.toString().toLowerCase().includes('audiencia') ||
-            emisora.toString().toLowerCase().includes('promedio')) return;
+        // Skip header rows, empty rows, or summary rows
+        if (!emisora) return;
+
+        const emisoraStr = emisora.toString().trim();
+
+        // Skip non-emisora values (numbers, summary labels)
+        if (!emisoraStr) return;
+        if (/^\d+$/.test(emisoraStr)) return; // Skip if just a number
+        if (emisoraStr.toLowerCase().includes('audiencia')) return;
+        if (emisoraStr.toLowerCase().includes('promedio')) return;
+        if (emisoraStr.toLowerCase() === 'total') return;
 
         const emisoraNormalized = emisora.toString().trim();
         audienceEmisoras.push(emisoraNormalized);
