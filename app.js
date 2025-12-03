@@ -49,7 +49,6 @@ function setupEventListeners() {
     audienceFileInput.addEventListener('change', handleAudienceFileSelect);
 
     // Step 2 navigation
-    document.getElementById('skipAudienceBtn').addEventListener('click', skipAudienceStep);
     document.getElementById('continueWithAudienceBtn').addEventListener('click', showMappingSection);
 
     // Mapping validation - Step 2.5
@@ -280,29 +279,63 @@ function parseAudienceData(jsonData) {
     audienceEmisoras = [];
     audienceRegions = [];
 
-    // Find the emisora column (could be "Emisora", "emisora", etc.)
+    // Find the emisora column (must be named "Emisora" or similar)
     const firstRow = jsonData[0];
     const keys = Object.keys(firstRow);
 
-    let emisoraKey = keys.find(k => k.toLowerCase().includes('emisora')) || keys[0];
+    // Look specifically for "Emisora" column (case insensitive)
+    let emisoraKey = keys.find(k => k.toLowerCase().trim() === 'emisora');
 
-    // Get region columns (all numeric columns that aren't ranking/percentage)
+    // If not found, try to find a column that contains "emisora"
+    if (!emisoraKey) {
+        emisoraKey = keys.find(k => k.toLowerCase().includes('emisora'));
+    }
+
+    if (!emisoraKey) {
+        alert('No se encontró la columna "Emisora" en el Excel. Asegúrate de que exista una columna llamada "Emisora".');
+        return;
+    }
+
+    // Known city/region names to look for
+    const knownRegions = ['AREQUIPA', 'CHICLAYO', 'CUSCO', 'HUANCAYO', 'PIURA', 'TRUJILLO', 'LIMA', 'ICA', 'TACNA', 'PUNO'];
+
+    // Get region columns - look for known city names or numeric columns that aren't metadata
     const regionKeys = keys.filter(k => {
-        if (k.toLowerCase().includes('emisora') || k.toLowerCase().includes('rnkg') ||
-            k.toLowerCase().includes('frc') || k === '%' || k.toLowerCase() === 'miles') {
+        const keyUpper = k.toUpperCase().trim();
+
+        // Skip known non-region columns
+        if (k.toLowerCase().includes('emisora') ||
+            k.toLowerCase().includes('rnkg') ||
+            k.toLowerCase().includes('ranking') ||
+            k.toLowerCase().includes('frc') ||
+            k.toLowerCase() === '%' ||
+            k.toLowerCase() === 'miles' ||
+            k.toLowerCase() === 'frecuencia') {
             return false;
         }
-        // Check if at least one row has a numeric value for this column
-        return jsonData.some(row => !isNaN(parseFloat(row[k])));
+
+        // Include if it matches a known region name
+        if (knownRegions.some(region => keyUpper.includes(region))) {
+            return true;
+        }
+
+        // Or if it has numeric values and looks like a city name (not a number/percentage)
+        const hasNumericValues = jsonData.some(row => !isNaN(parseFloat(row[k])));
+        const looksLikeCity = /^[A-Za-záéíóúÁÉÍÓÚñÑ\s]+$/.test(k.trim());
+
+        return hasNumericValues && looksLikeCity;
     });
 
     // Normalize region names to uppercase
-    audienceRegions = regionKeys.map(r => r.toUpperCase());
+    audienceRegions = regionKeys.map(r => r.toUpperCase().trim());
 
     // Process each row
     jsonData.forEach(row => {
         const emisora = row[emisoraKey];
-        if (!emisora || emisora.toString().toLowerCase().includes('audiencia')) return;
+        // Skip header rows or empty rows
+        if (!emisora ||
+            emisora.toString().toLowerCase().includes('audiencia') ||
+            emisora.toString().toLowerCase().includes('promedio')) return;
 
         const emisoraNormalized = emisora.toString().trim();
         audienceEmisoras.push(emisoraNormalized);
@@ -500,15 +533,6 @@ function saveModalMapping() {
     closeModal();
 }
 
-function skipAudienceStep() {
-    hasAudienceData = false;
-    audienceUploadSection.classList.add('hidden');
-    configSection.classList.remove('hidden');
-    document.getElementById('audienceToggle').classList.add('hidden');
-    populateFieldSelectors();
-    updateStepIndicator(3);
-}
-
 function confirmMappingAndContinue() {
     mappingSection.classList.add('hidden');
     configSection.classList.remove('hidden');
@@ -641,7 +665,7 @@ function generatePivotTable() {
 
     const valueField = document.getElementById('valueField').value;
     const aggregationType = document.getElementById('aggregationType').value;
-    const includeAudience = hasAudienceData && document.getElementById('includeAudience')?.checked;
+    const includeAudience = hasAudienceData; // Always include audience when data is loaded
 
     if (rowFields.length === 0) {
         alert('Selecciona al menos un campo para las filas');
