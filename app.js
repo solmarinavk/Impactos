@@ -242,8 +242,34 @@ function processAudienceFile(file) {
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
 
-        // Convert to JSON
-        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+        // Find the header row (look for "Emisora" or "Rnkg" in the first 10 rows)
+        let headerRowIndex = 0;
+        const range = XLSX.utils.decode_range(worksheet['!ref']);
+
+        for (let row = 0; row <= Math.min(10, range.e.r); row++) {
+            for (let col = 0; col <= Math.min(5, range.e.c); col++) {
+                const cellRef = XLSX.utils.encode_cell({ r: row, c: col });
+                const cell = worksheet[cellRef];
+                if (cell && cell.v) {
+                    const value = cell.v.toString().toLowerCase().trim();
+                    if (value === 'emisora' || value === 'rnkg') {
+                        headerRowIndex = row;
+                        console.log('Found header row at index:', headerRowIndex);
+                        break;
+                    }
+                }
+            }
+            if (headerRowIndex > 0) break;
+        }
+
+        // Convert to JSON starting from the header row
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, {
+            range: headerRowIndex,  // Start from the header row
+            defval: ''  // Default value for empty cells
+        });
+
+        console.log('Parsed JSON columns:', Object.keys(jsonData[0] || {}));
+        console.log('First data row:', jsonData[0]);
 
         if (jsonData.length === 0) {
             alert('El archivo Excel está vacío');
