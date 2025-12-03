@@ -257,6 +257,20 @@
                     </div>
                 </div>
 
+                <!-- Quick selection buttons -->
+                <div class="flex items-center gap-2 mb-4">
+                    <span class="text-sm text-slate-400">Selección rápida:</span>
+                    <button id="selectLowBtn" class="px-3 py-1.5 bg-red-500/20 hover:bg-red-500/40 border border-red-500/30 rounded-lg text-xs text-red-400 transition-colors">
+                        Rojas (&lt;50%)
+                    </button>
+                    <button id="selectMediumBtn" class="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/40 border border-amber-500/30 rounded-lg text-xs text-amber-400 transition-colors">
+                        Amarillas (50-80%)
+                    </button>
+                    <button id="selectLowMediumBtn" class="px-3 py-1.5 bg-slate-600/50 hover:bg-slate-500/50 border border-slate-500/30 rounded-lg text-xs text-slate-300 transition-colors">
+                        Rojas + Amarillas
+                    </button>
+                </div>
+
                 <!-- Bulk assignment -->
                 <div id="bulkAssignmentArea" class="hidden bg-slate-700/50 rounded-lg p-3 mb-4 flex items-center gap-3 flex-wrap">
                     <span class="text-sm text-slate-300"><span id="selectedCount">0</span> seleccionadas</span>

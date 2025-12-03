@@ -605,6 +605,40 @@ function setupBulkMappingEvents() {
         document.getElementById('selectAllMapping').checked = false;
         updateBulkSelectionUI();
     });
+
+    // Quick selection buttons
+    document.getElementById('selectLowBtn').addEventListener('click', () => selectByMatchLevel('low'));
+    document.getElementById('selectMediumBtn').addEventListener('click', () => selectByMatchLevel('medium'));
+    document.getElementById('selectLowMediumBtn').addEventListener('click', () => selectByMatchLevel('low-medium'));
+}
+
+function selectByMatchLevel(level) {
+    // Clear all first
+    document.querySelectorAll('.mapping-checkbox').forEach(cb => cb.checked = false);
+    document.getElementById('selectAllMapping').checked = false;
+
+    // Select based on match level
+    Object.entries(emisoraMapping).forEach(([txtEmisora, mapping]) => {
+        const score = mapping.score;
+        let shouldSelect = false;
+
+        if (level === 'low' && score < 50) {
+            shouldSelect = true;
+        } else if (level === 'medium' && score >= 50 && score < 80) {
+            shouldSelect = true;
+        } else if (level === 'low-medium' && score < 80) {
+            shouldSelect = true;
+        }
+
+        if (shouldSelect) {
+            const checkbox = document.querySelector(`.mapping-checkbox[data-emisora="${txtEmisora.replace(/"/g, '&quot;')}"]`);
+            if (checkbox) {
+                checkbox.checked = true;
+            }
+        }
+    });
+
+    updateBulkSelectionUI();
 }
 
 function populateBulkEmisoraSelect() {
