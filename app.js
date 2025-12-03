@@ -911,39 +911,39 @@ function renderPivotTable(rowFields, valueField, aggregationType, pivotData, inc
         : 'Conteo';
 
     // Build header
-    let headerHtml = '<tr>';
+    let headerHtml = '<tr class="bg-slate-800">';
     rowFields.forEach(field => {
-        headerHtml += `<th class="px-4 py-3 text-slate-300 font-semibold">${field}</th>`;
+        headerHtml += `<th class="px-4 py-3 text-slate-300 font-semibold text-left">${field}</th>`;
     });
     headerHtml += `<th class="px-4 py-3 text-slate-300 font-semibold text-right">${valueLabel}</th>`;
     if (includeAudience) {
         headerHtml += `<th class="px-4 py-3 text-emerald-300 font-semibold text-right">Audiencia</th>`;
+        headerHtml += `<th class="px-4 py-3 text-amber-300 font-semibold text-right">Impactos (Miles)</th>`;
     }
     headerHtml += '</tr>';
     thead.innerHTML = headerHtml;
 
-    // Build body with row grouping
+    // Build body - show all values in every row (no grouping)
     let html = '';
-    let prevKeys = [];
     let grandTotal = 0;
+    let grandTotalImpactos = 0;
 
     pivotData.forEach((row, index) => {
-        html += '<tr class="border-b border-slate-700/30 hover:bg-slate-700/20">';
+        // Calculate impactos
+        const impactos = (row.audienceValue !== null && row.value)
+            ? row.audienceValue * row.value
+            : null;
 
-        row.keys.forEach((key, keyIndex) => {
-            // Check if this key is same as previous row
-            const isSame = prevKeys[keyIndex] === key &&
-                           row.keys.slice(0, keyIndex).every((k, i) => k === prevKeys[i]);
+        // Alternate row colors for better readability
+        const rowClass = index % 2 === 0 ? 'bg-slate-800/30' : 'bg-slate-800/10';
+        html += `<tr class="border-b border-slate-700/30 hover:bg-slate-700/30 ${rowClass}">`;
 
-            if (isSame && keyIndex < row.keys.length - 1) {
-                html += `<td class="px-4 py-2 text-slate-500"></td>`;
-            } else {
-                const indent = keyIndex > 0 ? `padding-left: ${keyIndex * 20 + 16}px` : '';
-                html += `<td class="px-4 py-2 text-slate-300" style="${indent}">${key}</td>`;
-            }
+        // Show all keys in every row (no visual grouping)
+        row.keys.forEach((key) => {
+            html += `<td class="px-4 py-2 text-slate-300">${key}</td>`;
         });
 
-        // Value cell
+        // Value cell (Spots)
         const formattedValue = formatNumber(row.value, aggregationType);
         html += `<td class="px-4 py-2 text-right text-white font-medium">${formattedValue}</td>`;
 
@@ -954,33 +954,40 @@ function renderPivotTable(rowFields, valueField, aggregationType, pivotData, inc
             } else {
                 html += `<td class="px-4 py-2 text-right text-slate-600">-</td>`;
             }
+
+            // Impactos cell
+            if (impactos !== null) {
+                html += `<td class="px-4 py-2 text-right text-amber-400 font-bold">${impactos.toFixed(2)}</td>`;
+                grandTotalImpactos += impactos;
+            } else {
+                html += `<td class="px-4 py-2 text-right text-slate-600">-</td>`;
+            }
         }
 
         html += '</tr>';
-
         grandTotal += row.value;
-        prevKeys = [...row.keys];
     });
 
     tbody.innerHTML = html;
 
-    // Build footer with total
+    // Build footer with totals
     let footerColspan = rowFields.length;
     let footerHtml = `
-        <tr class="border-t-2 border-slate-600">
+        <tr class="border-t-2 border-slate-600 bg-slate-700/50">
             <td colspan="${footerColspan}" class="px-4 py-3 text-slate-300 font-bold">TOTAL</td>
             <td class="px-4 py-3 text-right text-white font-bold">${formatNumber(grandTotal, aggregationType)}</td>
     `;
     if (includeAudience) {
         footerHtml += `<td class="px-4 py-3 text-right text-slate-500">-</td>`;
+        footerHtml += `<td class="px-4 py-3 text-right text-amber-400 font-bold">${grandTotalImpactos.toFixed(2)}</td>`;
     }
     footerHtml += '</tr>';
     tfoot.innerHTML = footerHtml;
 
     // Update summary
     document.getElementById('resultsSummary').textContent =
-        `${pivotData.length.toLocaleString()} filas agrupadas de ${parsedData.length.toLocaleString()} registros` +
-        (includeAudience ? ' (con datos de audiencia)' : '');
+        `${pivotData.length.toLocaleString()} filas de ${parsedData.length.toLocaleString()} registros` +
+        (includeAudience ? ' (con audiencia e impactos)' : '');
 }
 
 function formatNumber(value, aggregationType) {
