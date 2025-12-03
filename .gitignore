@@ -1,0 +1,14 @@
+# Dependencies
+node_modules/
+
+# Package files (not needed for frontend-only project)
+package.json
+package-lock.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
