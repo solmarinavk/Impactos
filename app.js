@@ -393,6 +393,13 @@ function parseAudienceData(jsonData) {
 
     console.log('Detected emisora column:', emisoraKey);
 
+    // Find Frc. column (frequency) for differentiating duplicates like "Otras Emisoras"
+    const frcKey = keys.find(k => {
+        const keyLower = k.toLowerCase().trim();
+        return keyLower === 'frc' || keyLower === 'frc.' || keyLower === 'frecuencia';
+    });
+    console.log('Detected frequency column:', frcKey);
+
     // Get region columns - look for known city names
     const regionKeys = keys.filter(k => {
         const keyUpper = k.toUpperCase().trim();
@@ -417,7 +424,7 @@ function parseAudienceData(jsonData) {
         // Skip header rows, empty rows, or summary rows
         if (!emisora) return;
 
-        const emisoraStr = emisora.toString().trim();
+        let emisoraStr = emisora.toString().trim();
 
         // Skip non-emisora values (numbers, summary labels)
         if (!emisoraStr) return;
@@ -426,11 +433,21 @@ function parseAudienceData(jsonData) {
         if (emisoraStr.toLowerCase().includes('promedio')) return;
         if (emisoraStr.toLowerCase() === 'total') return;
 
-        const emisoraNormalized = emisora.toString().trim();
-        audienceEmisoras.push(emisoraNormalized);
+        // For "Otras Emisoras" or similar duplicates, append frequency (AM/FM)
+        if (frcKey && emisoraStr.toLowerCase().includes('otras emisoras')) {
+            const frc = row[frcKey];
+            if (frc) {
+                const frcStr = frc.toString().trim().toUpperCase();
+                if (frcStr === 'AM' || frcStr === 'FM' || frcStr === 'FM/AM') {
+                    emisoraStr = `${emisoraStr}-${frcStr}`;
+                }
+            }
+        }
+
+        audienceEmisoras.push(emisoraStr);
 
         const audienceRow = {
-            emisora: emisoraNormalized,
+            emisora: emisoraStr,
             values: {}
         };
 
