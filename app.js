@@ -583,6 +583,73 @@ function showMappingSection() {
     audienceUploadSection.classList.add('hidden');
     mappingSection.classList.remove('hidden');
     renderMappingTable();
+    setupBulkMappingEvents();
+    populateBulkEmisoraSelect();
+}
+
+function setupBulkMappingEvents() {
+    // Select all checkbox
+    const selectAllCheckbox = document.getElementById('selectAllMapping');
+    selectAllCheckbox.addEventListener('change', (e) => {
+        const checkboxes = document.querySelectorAll('.mapping-checkbox');
+        checkboxes.forEach(cb => cb.checked = e.target.checked);
+        updateBulkSelectionUI();
+    });
+
+    // Apply bulk button
+    document.getElementById('applyBulkBtn').addEventListener('click', applyBulkMapping);
+
+    // Clear selection button
+    document.getElementById('clearSelectionBtn').addEventListener('click', () => {
+        document.querySelectorAll('.mapping-checkbox').forEach(cb => cb.checked = false);
+        document.getElementById('selectAllMapping').checked = false;
+        updateBulkSelectionUI();
+    });
+}
+
+function populateBulkEmisoraSelect() {
+    const select = document.getElementById('bulkEmisoraSelect');
+    select.innerHTML = '<option value="">(Sin mapeo)</option>';
+    audienceEmisoras.forEach(emisora => {
+        const option = document.createElement('option');
+        option.value = emisora;
+        option.textContent = emisora;
+        select.appendChild(option);
+    });
+}
+
+function updateBulkSelectionUI() {
+    const checkboxes = document.querySelectorAll('.mapping-checkbox:checked');
+    const count = checkboxes.length;
+    document.getElementById('selectedCount').textContent = count;
+    document.getElementById('bulkAssignmentArea').classList.toggle('hidden', count === 0);
+}
+
+function applyBulkMapping() {
+    const selectedEmisora = document.getElementById('bulkEmisoraSelect').value;
+    const checkboxes = document.querySelectorAll('.mapping-checkbox:checked');
+
+    checkboxes.forEach(cb => {
+        const txtEmisora = cb.dataset.emisora;
+        if (selectedEmisora) {
+            emisoraMapping[txtEmisora] = {
+                excelEmisora: selectedEmisora,
+                score: 100,
+                confirmed: true
+            };
+        } else {
+            emisoraMapping[txtEmisora] = {
+                excelEmisora: null,
+                score: 0,
+                confirmed: true
+            };
+        }
+    });
+
+    // Clear selection and re-render
+    document.getElementById('selectAllMapping').checked = false;
+    renderMappingTable();
+    updateBulkSelectionUI();
 }
 
 function renderMappingTable() {
@@ -600,6 +667,9 @@ function renderMappingTable() {
         const row = document.createElement('tr');
         row.className = `border-b border-slate-700/30 ${matchClass}`;
         row.innerHTML = `
+            <td class="px-2 py-3">
+                <input type="checkbox" class="mapping-checkbox w-4 h-4 rounded bg-slate-700 border-slate-600" data-emisora="${txtEmisora.replace(/"/g, '&quot;')}" onchange="updateBulkSelectionUI()">
+            </td>
             <td class="px-4 py-3 text-slate-300">${txtEmisora}</td>
             <td class="px-4 py-3 text-white font-medium">${mapping.excelEmisora || '(sin mapeo)'}</td>
             <td class="px-4 py-3">
@@ -618,6 +688,9 @@ function renderMappingTable() {
         tbody.appendChild(row);
     });
 }
+
+// Make updateBulkSelectionUI globally accessible
+window.updateBulkSelectionUI = updateBulkSelectionUI;
 
 function openEditModal(txtEmisora) {
     currentEditingEmisora = txtEmisora;
