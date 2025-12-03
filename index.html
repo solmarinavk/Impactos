@@ -290,10 +290,10 @@
                     <svg class="w-5 h-5 mr-2 text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path>
                     </svg>
-                    Configura tu Tabla Dinámica
+                    Configura tu Tabla
                 </h3>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <!-- Row Fields -->
                     <div class="space-y-3">
                         <label class="block text-sm font-medium text-slate-300">
@@ -339,7 +339,7 @@
                         </select>
                     </div>
 
-                    <!-- Aggregation Type -->
+                    <!-- Aggregation Type and Generate Button -->
                     <div class="space-y-3">
                         <label class="block text-sm font-medium text-slate-300">
                             <span class="flex items-center">
@@ -356,11 +356,7 @@
                             <option value="min">Mínimo</option>
                             <option value="max">Máximo</option>
                         </select>
-                    </div>
-
-                    <!-- Generate Button -->
-                    <div class="flex items-end">
-                        <button id="generateBtn" class="w-full bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white font-medium py-2 px-4 rounded-lg transition-all duration-300 flex items-center justify-center">
+                        <button id="generateBtn" class="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-medium py-2.5 px-4 rounded-lg transition-all duration-300 flex items-center justify-center mt-2">
                             <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
                             </svg>
@@ -454,7 +450,7 @@
     <footer class="border-t border-slate-700/50 mt-12">
         <div class="container mx-auto px-6 py-4">
             <p class="text-center text-sm text-slate-500">
-                Calculadora de Impactos Radio © 2024
+                Calculadora de Impactos Radio | Elaborado por The Lab
             </p>
         </div>
     </footer>

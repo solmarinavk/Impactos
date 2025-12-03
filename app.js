@@ -1113,8 +1113,46 @@ function exportToExcel() {
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.table_to_sheet(table);
 
-    XLSX.utils.book_append_sheet(wb, ws, 'Tabla Dinámica');
-    XLSX.writeFile(wb, 'tabla_dinamica.xlsx');
+    // Get table dimensions for table formatting
+    const range = XLSX.utils.decode_range(ws['!ref']);
+    const numRows = range.e.r + 1;
+    const numCols = range.e.c + 1;
+
+    // Add table formatting (Excel table style)
+    if (!ws['!tables']) ws['!tables'] = [];
+    ws['!tables'].push({
+        name: 'ImpactosRadio',
+        ref: ws['!ref'],
+        headerRow: true,
+        totalsRow: true,
+        style: {
+            theme: 'TableStyleMedium2',
+            showRowStripes: true
+        }
+    });
+
+    // Set column widths for better readability
+    ws['!cols'] = [];
+    for (let i = 0; i < numCols; i++) {
+        ws['!cols'].push({ wch: 15 }); // 15 characters width
+    }
+
+    XLSX.utils.book_append_sheet(wb, ws, 'Impactos Radio');
+
+    // Generate filename with date and time
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('es-PE', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    }).replace(/\//g, '-');
+    const timeStr = now.toLocaleTimeString('es-PE', {
+        hour: '2-digit',
+        minute: '2-digit'
+    }).replace(/:/g, '');
+
+    const fileName = `Impactos Radio_${dateStr}_${timeStr}.xlsx`;
+    XLSX.writeFile(wb, fileName);
 }
 
 // Make functions globally accessible for onclick handlers
