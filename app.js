@@ -489,10 +489,11 @@ function processExcelFile(file) {
             const sheetName = workbook.SheetNames[0];
             const worksheet = workbook.Sheets[sheetName];
 
-            // Convert to JSON (assumes first row is headers)
+            // Convert to JSON with proper formatting
             const jsonData = XLSX.utils.sheet_to_json(worksheet, {
                 defval: '',
-                raw: false // Keep values as strings to preserve formatting
+                raw: false, // Convert dates and numbers to strings for consistency
+                dateNF: 'dd/mm/yyyy' // Ensure dates are formatted correctly
             });
 
             if (jsonData.length === 0) {
@@ -500,18 +501,26 @@ function processExcelFile(file) {
                 return;
             }
 
-            // Extract headers from first row keys
-            headers = Object.keys(jsonData[0]);
+            // Get original headers
+            const originalHeaders = Object.keys(jsonData[0]);
 
-            // Normalize REGION column name (handle encoding issues)
-            headers = headers.map(h => {
-                if (h.toUpperCase().startsWith('REGION/') || h.toUpperCase().includes('MBITO')) {
-                    return 'REGION';
+            // Create header mapping (original -> normalized)
+            const headerMap = {};
+            originalHeaders.forEach(h => {
+                let normalized = h;
+                if (h.toUpperCase().startsWith('REGION/') || h.toUpperCase().includes('MBITO') || h.toUpperCase().includes('AMBITO')) {
+                    normalized = 'REGION';
                 }
-                return h;
+                headerMap[h] = normalized;
             });
 
-            // Add computed fields
+            // Build final headers list with normalized names
+            headers = Object.values(headerMap);
+
+            // Remove duplicates (in case REGION appears multiple times)
+            headers = [...new Set(headers)];
+
+            // Add computed fields if not present
             if (!headers.includes('AÑO')) headers.push('AÑO');
             if (!headers.includes('MES')) headers.push('MES');
             if (!headers.includes('MES_NOMBRE')) headers.push('MES_NOMBRE');
@@ -521,28 +530,40 @@ function processExcelFile(file) {
             parsedData = jsonData.map(row => {
                 const processedRow = {};
 
-                // Copy existing fields (normalize keys)
-                Object.keys(row).forEach(key => {
-                    let normalizedKey = key;
-                    if (key.toUpperCase().startsWith('REGION/') || key.toUpperCase().includes('MBITO')) {
-                        normalizedKey = 'REGION';
+                // Copy existing fields using normalized keys
+                Object.keys(row).forEach(originalKey => {
+                    const normalizedKey = headerMap[originalKey];
+                    let value = row[originalKey];
+
+                    // Convert value to string if it's not null/undefined
+                    if (value !== null && value !== undefined) {
+                        value = String(value).trim();
+                    } else {
+                        value = '';
                     }
-                    processedRow[normalizedKey] = row[key];
+
+                    // If normalized key already exists (duplicate columns), keep first non-empty value
+                    if (!processedRow[normalizedKey] || processedRow[normalizedKey] === '') {
+                        processedRow[normalizedKey] = value;
+                    }
                 });
 
                 // Compute year, month and week from DIA field
                 const dateField = processedRow['DIA'] || '';
                 if (dateField) {
+                    // Handle both dd/mm/yyyy and d/m/yyyy formats
                     const dateParts = dateField.split('/');
                     if (dateParts.length === 3) {
                         const day = parseInt(dateParts[0]);
                         const month = parseInt(dateParts[1]);
                         const year = parseInt(dateParts[2]);
 
-                        processedRow['AÑO'] = dateParts[2];
-                        processedRow['MES'] = dateParts[1];
-                        processedRow['MES_NOMBRE'] = getMonthName(month);
-                        processedRow['SEMANA'] = getWeekNumber(year, month, day);
+                        if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+                            processedRow['AÑO'] = String(year);
+                            processedRow['MES'] = String(month).padStart(2, '0');
+                            processedRow['MES_NOMBRE'] = getMonthName(month);
+                            processedRow['SEMANA'] = getWeekNumber(year, month, day);
+                        }
                     }
                 }
 
@@ -552,7 +573,8 @@ function processExcelFile(file) {
             console.log('Parsed Excel data:', {
                 headers: headers,
                 rowCount: parsedData.length,
-                sampleRow: parsedData[0]
+                sampleRow: parsedData[0],
+                headerMap: headerMap
             });
 
             // Update UI
