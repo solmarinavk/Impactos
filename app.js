@@ -8,6 +8,7 @@ let audienceRegions = [];
 let emisoraMapping = {}; // TXT emisora -> Excel emisora
 let hasAudienceData = false;
 let currentEditingEmisora = null;
+let audienceFiles = []; // Store multiple uploaded files
 
 // DOM Elements
 const dropZone = document.getElementById('dropZone');
@@ -128,17 +129,248 @@ function handleFileSelect(e) {
 function handleAudienceDrop(e) {
     e.preventDefault();
     e.currentTarget.classList.remove('drag-over');
-    const files = e.dataTransfer.files;
+    const files = Array.from(e.dataTransfer.files);
     if (files.length > 0) {
-        processAudienceFile(files[0]);
+        processMultipleAudienceFiles(files);
     }
 }
 
 function handleAudienceFileSelect(e) {
-    const files = e.target.files;
+    const files = Array.from(e.target.files);
     if (files.length > 0) {
-        processAudienceFile(files[0]);
+        processMultipleAudienceFiles(files);
     }
+}
+
+// Process multiple audience files
+async function processMultipleAudienceFiles(files) {
+    // Validate all files are Excel
+    const invalidFiles = files.filter(file => !file.name.match(/\.xlsx?$/i));
+    if (invalidFiles.length > 0) {
+        alert(`Los siguientes archivos no son Excel: ${invalidFiles.map(f => f.name).join(', ')}`);
+        return;
+    }
+
+    audienceFiles = files;
+
+    // Reset audience data
+    audienceData = [];
+    audienceEmisoras = [];
+    audienceRegions = [];
+
+    // Process all files sequentially
+    const allParsedData = [];
+
+    for (const file of files) {
+        try {
+            const parsedData = await processAudienceFileData(file);
+            allParsedData.push({ fileName: file.name, data: parsedData });
+        } catch (error) {
+            console.error(`Error processing ${file.name}:`, error);
+            alert(`Error al procesar ${file.name}: ${error.message}`);
+            return;
+        }
+    }
+
+    // Combine all data
+    combineAudienceData(allParsedData);
+
+    // Update UI
+    updateAudienceUI();
+}
+
+// Process a single audience file and return parsed data
+function processAudienceFileData(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+
+                // Get first sheet
+                const sheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[sheetName];
+
+                // Find the header row (look for "Emisora" or "Rnkg" in the first 10 rows)
+                let headerRowIndex = 0;
+                const range = XLSX.utils.decode_range(worksheet['!ref']);
+
+                for (let row = 0; row <= Math.min(10, range.e.r); row++) {
+                    for (let col = 0; col <= Math.min(5, range.e.c); col++) {
+                        const cellRef = XLSX.utils.encode_cell({ r: row, c: col });
+                        const cell = worksheet[cellRef];
+                        if (cell && cell.v) {
+                            const value = cell.v.toString().toLowerCase().trim();
+                            if (value === 'emisora' || value === 'rnkg') {
+                                headerRowIndex = row;
+                                break;
+                            }
+                        }
+                    }
+                    if (headerRowIndex > 0) break;
+                }
+
+                // Convert to JSON starting from the header row
+                const jsonData = XLSX.utils.sheet_to_json(worksheet, {
+                    range: headerRowIndex,
+                    defval: ''
+                });
+
+                if (jsonData.length === 0) {
+                    reject(new Error('El archivo está vacío'));
+                    return;
+                }
+
+                resolve(jsonData);
+            } catch (error) {
+                reject(error);
+            }
+        };
+        reader.onerror = () => reject(new Error('Error al leer el archivo'));
+        reader.readAsArrayBuffer(file);
+    });
+}
+
+// Combine data from multiple audience files
+function combineAudienceData(allParsedData) {
+    const emisoraMap = new Map(); // Map to combine data by emisora
+    const regionSet = new Set(); // All unique regions
+
+    allParsedData.forEach(({ fileName, data }) => {
+        const firstRow = data[0];
+        const keys = Object.keys(firstRow);
+
+        console.log(`Processing ${fileName}:`, keys);
+
+        // Known city/region names to look for
+        const knownRegions = ['AREQUIPA', 'CHICLAYO', 'CUSCO', 'HUANCAYO', 'PIURA', 'TRUJILLO', 'LIMA', 'ICA', 'TACNA', 'PUNO'];
+
+        // Columns to skip (not emisoras, not regions)
+        const skipColumns = ['rnkg', 'ranking', 'frc', 'frc.', '%', 'miles', 'frecuencia'];
+
+        // Find emisora column
+        let emisoraKey = keys.find(k => k.toLowerCase().trim() === 'emisora');
+        if (!emisoraKey) {
+            emisoraKey = keys.find(k => k.toLowerCase().includes('emisora'));
+        }
+        if (!emisoraKey) {
+            emisoraKey = keys.find(k => {
+                const keyLower = k.toLowerCase().trim();
+                const keyUpper = k.toUpperCase().trim();
+                if (skipColumns.includes(keyLower)) return false;
+                if (knownRegions.some(r => keyUpper.includes(r))) return false;
+                const textCount = data.filter(row => {
+                    const val = row[k];
+                    if (!val) return false;
+                    const strVal = val.toString().trim();
+                    return /[a-zA-Z]/.test(strVal) && isNaN(parseFloat(strVal));
+                }).length;
+                return textCount > data.length * 0.3;
+            });
+        }
+
+        if (!emisoraKey) {
+            console.warn(`No se encontró columna de emisora en ${fileName}`);
+            return;
+        }
+
+        // Find Frc. column (frequency)
+        const frcKey = keys.find(k => {
+            const keyLower = k.toLowerCase().trim();
+            return keyLower === 'frc' || keyLower === 'frc.' || keyLower === 'frecuencia';
+        });
+
+        // Get region columns
+        const regionKeys = keys.filter(k => {
+            const keyUpper = k.toUpperCase().trim();
+            const keyLower = k.toLowerCase().trim();
+            if (keyLower === emisoraKey.toLowerCase()) return false;
+            if (skipColumns.includes(keyLower)) return false;
+            return knownRegions.some(region => keyUpper.includes(region));
+        });
+
+        // Add regions to global set
+        regionKeys.forEach(r => regionSet.add(r.toUpperCase().trim()));
+
+        // Process each row
+        data.forEach(row => {
+            const emisora = row[emisoraKey];
+            if (!emisora) return;
+
+            let emisoraStr = emisora.toString().trim();
+
+            // Skip non-emisora values
+            if (!emisoraStr) return;
+            if (/^\d+$/.test(emisoraStr)) return;
+            if (emisoraStr.toLowerCase().includes('audiencia')) return;
+            if (emisoraStr.toLowerCase().includes('promedio')) return;
+            if (emisoraStr.toLowerCase() === 'total') return;
+
+            // For "Otras Emisoras", append frequency (AM/FM)
+            if (frcKey && emisoraStr.toLowerCase().includes('otras emisoras')) {
+                const frc = row[frcKey];
+                if (frc) {
+                    const frcStr = frc.toString().trim().toUpperCase();
+                    if (frcStr === 'AM' || frcStr === 'FM' || frcStr === 'FM/AM') {
+                        emisoraStr = `${emisoraStr}-${frcStr}`;
+                    }
+                }
+            }
+
+            // Get or create emisora entry
+            if (!emisoraMap.has(emisoraStr)) {
+                emisoraMap.set(emisoraStr, { emisora: emisoraStr, values: {} });
+            }
+
+            const emisoraData = emisoraMap.get(emisoraStr);
+
+            // Add region values
+            regionKeys.forEach((key, index) => {
+                const regionName = key.toUpperCase().trim();
+                const value = parseFloat(row[key]) || 0;
+
+                // If region already has a value, keep the existing one (or you could sum, average, etc.)
+                if (!emisoraData.values[regionName]) {
+                    emisoraData.values[regionName] = value;
+                }
+            });
+        });
+    });
+
+    // Convert to arrays
+    audienceRegions = Array.from(regionSet).sort();
+    audienceEmisoras = Array.from(emisoraMap.keys()).sort();
+    audienceData = Array.from(emisoraMap.values());
+
+    hasAudienceData = true;
+
+    // Create initial mapping
+    createInitialMapping();
+}
+
+// Update UI after loading audience files
+function updateAudienceUI() {
+    const fileNames = audienceFiles.map(f => f.name).join(', ');
+    document.getElementById('audienceFileName').textContent = fileNames;
+    document.getElementById('audienceFileInfo').classList.remove('hidden');
+    document.getElementById('continueWithAudienceBtn').classList.remove('hidden');
+
+    // Change dropzone appearance
+    audienceDropZone.innerHTML = `
+        <div class="flex flex-col items-center">
+            <div class="w-14 h-14 bg-emerald-600/20 rounded-2xl flex items-center justify-center mb-4">
+                <svg class="w-7 h-7 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+            </div>
+            <p class="text-lg font-medium text-emerald-400 mb-1">${audienceFiles.length} archivo(s) cargado(s)</p>
+            <p class="text-sm text-slate-400">${audienceEmisoras.length} emisoras, ${audienceRegions.length} regiones</p>
+            <div class="mt-3 text-xs text-slate-500 max-w-md text-center">
+                ${audienceFiles.map(f => f.name).join(' | ')}
+            </div>
+        </div>
+    `;
 }
 
 // File processing - Step 1
