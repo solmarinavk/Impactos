@@ -163,8 +163,8 @@ async function processMultipleAudienceFiles(files) {
 
     for (const file of files) {
         try {
-            const parsedData = await processAudienceFileData(file);
-            allParsedData.push({ fileName: file.name, data: parsedData });
+            const { ciudad, data } = await processAudienceFileData(file);
+            allParsedData.push({ fileName: file.name, ciudad, data });
         } catch (error) {
             console.error(`Error processing ${file.name}:`, error);
             alert(`Error al procesar ${file.name}: ${error.message}`);
@@ -176,7 +176,7 @@ async function processMultipleAudienceFiles(files) {
     combineAudienceData(allParsedData);
 
     // Update UI
-    updateAudienceUI();
+    updateAudienceUI(allParsedData);
 }
 
 // Process a single audience file and return parsed data
@@ -191,10 +191,47 @@ function processAudienceFileData(file) {
                 // Get first sheet
                 const sheetName = workbook.SheetNames[0];
                 const worksheet = workbook.Sheets[sheetName];
+                const range = XLSX.utils.decode_range(worksheet['!ref']);
+
+                // Extract city from row 4 (index 3)
+                let ciudad = null;
+                for (let col = 0; col <= Math.min(10, range.e.c); col++) {
+                    const cellRef = XLSX.utils.encode_cell({ r: 3, c: col }); // Row 4 = index 3
+                    const cell = worksheet[cellRef];
+                    if (cell && cell.v) {
+                        const value = cell.v.toString().trim();
+                        // Check if this cell contains "Ciudad:" or is the value after it
+                        if (value.toLowerCase().includes('ciudad')) {
+                            // Check next cell for the actual city name
+                            const nextCellRef = XLSX.utils.encode_cell({ r: 3, c: col + 1 });
+                            const nextCell = worksheet[nextCellRef];
+                            if (nextCell && nextCell.v) {
+                                ciudad = nextCell.v.toString().trim().toUpperCase();
+                                break;
+                            }
+                        } else if (!value.toLowerCase().includes('ciudad') && value.length > 0 && col > 0) {
+                            // Might be the city value itself (after "Ciudad:")
+                            const prevCellRef = XLSX.utils.encode_cell({ r: 3, c: col - 1 });
+                            const prevCell = worksheet[prevCellRef];
+                            if (prevCell && prevCell.v && prevCell.v.toString().toLowerCase().includes('ciudad')) {
+                                ciudad = value.toUpperCase();
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                // If no city found in row 4, try to extract from filename
+                if (!ciudad) {
+                    const knownCities = ['AREQUIPA', 'CHICLAYO', 'CUSCO', 'HUANCAYO', 'PIURA', 'TRUJILLO', 'LIMA', 'ICA', 'TACNA', 'PUNO'];
+                    const fileNameUpper = file.name.toUpperCase();
+                    ciudad = knownCities.find(city => fileNameUpper.includes(city));
+                }
+
+                console.log(`Detected city for ${file.name}: ${ciudad}`);
 
                 // Find the header row (look for "Emisora" or "Rnkg" in the first 10 rows)
                 let headerRowIndex = 0;
-                const range = XLSX.utils.decode_range(worksheet['!ref']);
 
                 for (let row = 0; row <= Math.min(10, range.e.r); row++) {
                     for (let col = 0; col <= Math.min(5, range.e.c); col++) {
@@ -222,7 +259,7 @@ function processAudienceFileData(file) {
                     return;
                 }
 
-                resolve(jsonData);
+                resolve({ ciudad, data: jsonData });
             } catch (error) {
                 reject(error);
             }
@@ -235,19 +272,24 @@ function processAudienceFileData(file) {
 // Combine data from multiple audience files
 function combineAudienceData(allParsedData) {
     const emisoraMap = new Map(); // Map to combine data by emisora
-    const regionSet = new Set(); // All unique regions
+    const regionSet = new Set(); // All unique regions (cities)
 
-    allParsedData.forEach(({ fileName, data }) => {
+    allParsedData.forEach(({ fileName, ciudad, data }) => {
+        if (!ciudad) {
+            console.warn(`No se pudo detectar la ciudad para ${fileName}`);
+            return;
+        }
+
+        // Add city to region set
+        regionSet.add(ciudad);
+
         const firstRow = data[0];
         const keys = Object.keys(firstRow);
 
-        console.log(`Processing ${fileName}:`, keys);
+        console.log(`Processing ${fileName} - Ciudad: ${ciudad}`, keys);
 
-        // Known city/region names to look for
-        const knownRegions = ['AREQUIPA', 'CHICLAYO', 'CUSCO', 'HUANCAYO', 'PIURA', 'TRUJILLO', 'LIMA', 'ICA', 'TACNA', 'PUNO'];
-
-        // Columns to skip (not emisoras, not regions)
-        const skipColumns = ['rnkg', 'ranking', 'frc', 'frc.', '%', 'miles', 'frecuencia'];
+        // Columns to skip (not emisoras, not values)
+        const skipColumns = ['rnkg', 'ranking', 'frc', 'frc.', 'frecuencia'];
 
         // Find emisora column
         let emisoraKey = keys.find(k => k.toLowerCase().trim() === 'emisora');
@@ -255,6 +297,7 @@ function combineAudienceData(allParsedData) {
             emisoraKey = keys.find(k => k.toLowerCase().includes('emisora'));
         }
         if (!emisoraKey) {
+            const knownRegions = ['AREQUIPA', 'CHICLAYO', 'CUSCO', 'HUANCAYO', 'PIURA', 'TRUJILLO', 'LIMA', 'ICA', 'TACNA', 'PUNO'];
             emisoraKey = keys.find(k => {
                 const keyLower = k.toLowerCase().trim();
                 const keyUpper = k.toUpperCase().trim();
@@ -281,17 +324,28 @@ function combineAudienceData(allParsedData) {
             return keyLower === 'frc' || keyLower === 'frc.' || keyLower === 'frecuencia';
         });
 
-        // Get region columns
-        const regionKeys = keys.filter(k => {
-            const keyUpper = k.toUpperCase().trim();
-            const keyLower = k.toLowerCase().trim();
-            if (keyLower === emisoraKey.toLowerCase()) return false;
-            if (skipColumns.includes(keyLower)) return false;
-            return knownRegions.some(region => keyUpper.includes(region));
-        });
+        // Find the value column (Miles, %, etc.) - usually numeric column
+        let valueKey = keys.find(k => k.toLowerCase().includes('miles'));
+        if (!valueKey) {
+            valueKey = keys.find(k => k.toLowerCase().trim() === '%');
+        }
+        if (!valueKey) {
+            // Find first numeric column that's not ranking
+            valueKey = keys.find(k => {
+                const keyLower = k.toLowerCase().trim();
+                if (skipColumns.includes(keyLower)) return false;
+                if (k === emisoraKey) return false;
+                if (k === frcKey) return false;
+                // Check if column has numeric values
+                const numericCount = data.filter(row => {
+                    const val = row[k];
+                    return val && !isNaN(parseFloat(val));
+                }).length;
+                return numericCount > data.length * 0.5;
+            });
+        }
 
-        // Add regions to global set
-        regionKeys.forEach(r => regionSet.add(r.toUpperCase().trim()));
+        console.log(`Using columns - Emisora: ${emisoraKey}, Value: ${valueKey}`);
 
         // Process each row
         data.forEach(row => {
@@ -325,16 +379,17 @@ function combineAudienceData(allParsedData) {
 
             const emisoraData = emisoraMap.get(emisoraStr);
 
-            // Add region values
-            regionKeys.forEach((key, index) => {
-                const regionName = key.toUpperCase().trim();
-                const value = parseFloat(row[key]) || 0;
+            // Get the audience value for this city
+            let value = 0;
+            if (valueKey && row[valueKey]) {
+                value = parseFloat(row[valueKey]) || 0;
+            }
 
-                // If region already has a value, keep the existing one (or you could sum, average, etc.)
-                if (!emisoraData.values[regionName]) {
-                    emisoraData.values[regionName] = value;
-                }
-            });
+            // Store value for this city/region
+            // If this emisora already has a value for this region, keep the existing one
+            if (!emisoraData.values[ciudad]) {
+                emisoraData.values[ciudad] = value;
+            }
         });
     });
 
@@ -343,6 +398,12 @@ function combineAudienceData(allParsedData) {
     audienceEmisoras = Array.from(emisoraMap.keys()).sort();
     audienceData = Array.from(emisoraMap.values());
 
+    console.log('Final combined data:', {
+        regions: audienceRegions,
+        emisoras: audienceEmisoras.length,
+        sampleData: audienceData.slice(0, 3)
+    });
+
     hasAudienceData = true;
 
     // Create initial mapping
@@ -350,11 +411,16 @@ function combineAudienceData(allParsedData) {
 }
 
 // Update UI after loading audience files
-function updateAudienceUI() {
+function updateAudienceUI(allParsedData) {
     const fileNames = audienceFiles.map(f => f.name).join(', ');
     document.getElementById('audienceFileName').textContent = fileNames;
     document.getElementById('audienceFileInfo').classList.remove('hidden');
     document.getElementById('continueWithAudienceBtn').classList.remove('hidden');
+
+    // Build file list with cities
+    const fileListHTML = allParsedData.map(({ fileName, ciudad }) =>
+        `<div class="text-xs text-slate-400">${fileName} → <span class="text-emerald-400 font-medium">${ciudad || 'N/A'}</span></div>`
+    ).join('');
 
     // Change dropzone appearance
     audienceDropZone.innerHTML = `
@@ -365,9 +431,10 @@ function updateAudienceUI() {
                 </svg>
             </div>
             <p class="text-lg font-medium text-emerald-400 mb-1">${audienceFiles.length} archivo(s) cargado(s)</p>
-            <p class="text-sm text-slate-400">${audienceEmisoras.length} emisoras, ${audienceRegions.length} regiones</p>
-            <div class="mt-3 text-xs text-slate-500 max-w-md text-center">
-                ${audienceFiles.map(f => f.name).join(' | ')}
+            <p class="text-sm text-slate-400 mb-2">${audienceEmisoras.length} emisoras, ${audienceRegions.length} ciudades</p>
+            <p class="text-xs font-medium text-slate-300 mb-1">Ciudades: ${audienceRegions.join(', ')}</p>
+            <div class="mt-3 space-y-1 max-w-md">
+                ${fileListHTML}
             </div>
         </div>
     `;
