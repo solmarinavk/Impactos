@@ -442,11 +442,23 @@ function updateAudienceUI(allParsedData) {
 
 // File processing - Step 1
 function processFile(file) {
-    if (!file.name.endsWith('.txt')) {
-        alert('Por favor selecciona un archivo TXT');
+    const isExcel = file.name.match(/\.xlsx?$/i);
+    const isTxt = file.name.endsWith('.txt');
+
+    if (!isExcel && !isTxt) {
+        alert('Por favor selecciona un archivo TXT o Excel (.xlsx, .xls)');
         return;
     }
 
+    if (isExcel) {
+        processExcelFile(file);
+    } else {
+        processTxtFile(file);
+    }
+}
+
+// Process TXT file
+function processTxtFile(file) {
     const reader = new FileReader();
     reader.onload = (e) => {
         const content = e.target.result;
@@ -463,6 +475,102 @@ function processFile(file) {
         updateStepIndicator(2);
     };
     reader.readAsText(file, 'UTF-8');
+}
+
+// Process Excel file (same structure as TXT but in Excel format)
+function processExcelFile(file) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+
+            // Get first sheet
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+
+            // Convert to JSON (assumes first row is headers)
+            const jsonData = XLSX.utils.sheet_to_json(worksheet, {
+                defval: '',
+                raw: false // Keep values as strings to preserve formatting
+            });
+
+            if (jsonData.length === 0) {
+                alert('El archivo Excel está vacío');
+                return;
+            }
+
+            // Extract headers from first row keys
+            headers = Object.keys(jsonData[0]);
+
+            // Normalize REGION column name (handle encoding issues)
+            headers = headers.map(h => {
+                if (h.toUpperCase().startsWith('REGION/') || h.toUpperCase().includes('MBITO')) {
+                    return 'REGION';
+                }
+                return h;
+            });
+
+            // Add computed fields
+            if (!headers.includes('AÑO')) headers.push('AÑO');
+            if (!headers.includes('MES')) headers.push('MES');
+            if (!headers.includes('MES_NOMBRE')) headers.push('MES_NOMBRE');
+            if (!headers.includes('SEMANA')) headers.push('SEMANA');
+
+            // Process each row
+            parsedData = jsonData.map(row => {
+                const processedRow = {};
+
+                // Copy existing fields (normalize keys)
+                Object.keys(row).forEach(key => {
+                    let normalizedKey = key;
+                    if (key.toUpperCase().startsWith('REGION/') || key.toUpperCase().includes('MBITO')) {
+                        normalizedKey = 'REGION';
+                    }
+                    processedRow[normalizedKey] = row[key];
+                });
+
+                // Compute year, month and week from DIA field
+                const dateField = processedRow['DIA'] || '';
+                if (dateField) {
+                    const dateParts = dateField.split('/');
+                    if (dateParts.length === 3) {
+                        const day = parseInt(dateParts[0]);
+                        const month = parseInt(dateParts[1]);
+                        const year = parseInt(dateParts[2]);
+
+                        processedRow['AÑO'] = dateParts[2];
+                        processedRow['MES'] = dateParts[1];
+                        processedRow['MES_NOMBRE'] = getMonthName(month);
+                        processedRow['SEMANA'] = getWeekNumber(year, month, day);
+                    }
+                }
+
+                return processedRow;
+            });
+
+            console.log('Parsed Excel data:', {
+                headers: headers,
+                rowCount: parsedData.length,
+                sampleRow: parsedData[0]
+            });
+
+            // Update UI
+            fileName.textContent = file.name;
+            rowCount.textContent = `(${parsedData.length.toLocaleString()} registros)`;
+            fileInfo.classList.remove('hidden');
+
+            // Move to Step 2
+            uploadSection.classList.add('hidden');
+            audienceUploadSection.classList.remove('hidden');
+            updateStepIndicator(2);
+
+        } catch (error) {
+            console.error('Error processing Excel file:', error);
+            alert('Error al procesar el archivo Excel: ' + error.message);
+        }
+    };
+    reader.readAsArrayBuffer(file);
 }
 
 // Parse pipe-delimited data
