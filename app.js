@@ -1589,9 +1589,9 @@ function renderPivotTable(rowFields, valueField, aggregationType, pivotData, inc
     let grandTotalImpactos = 0;
 
     pivotData.forEach((row, index) => {
-        // Calculate impactos
+        // Calculate impactos (multiply by 1000 because audience values are in thousands)
         const impactos = (row.audienceValue !== null && row.value)
-            ? row.audienceValue * row.value
+            ? row.audienceValue * row.value * 1000
             : null;
 
         // Alternate row colors for better readability
@@ -1617,7 +1617,7 @@ function renderPivotTable(rowFields, valueField, aggregationType, pivotData, inc
 
             // Impactos cell
             if (impactos !== null) {
-                html += `<td class="px-4 py-2 text-right text-amber-400 font-bold">${impactos.toFixed(2)}</td>`;
+                html += `<td class="px-4 py-2 text-right text-amber-400 font-bold">${impactos.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</td>`;
                 grandTotalImpactos += impactos;
             } else {
                 html += `<td class="px-4 py-2 text-right text-slate-600">-</td>`;
